@@ -1,0 +1,2 @@
+# ThreadPoolDLL
+External ThreadPool DLL.
