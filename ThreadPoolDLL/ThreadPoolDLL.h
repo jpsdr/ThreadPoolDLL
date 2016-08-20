@@ -19,6 +19,7 @@ typedef struct _Public_MT_Data_Thread
 } Public_MT_Data_Thread;
 
 
+
 namespace ThreadPoolDLL
 {
 
@@ -27,7 +28,8 @@ class ThreadPoolInterface
 	public:
 
 	static THREADPOOLDLL_API uint8_t GetThreadNumber(uint8_t thread_number);
-	static THREADPOOLDLL_API bool AllocateThreads(uint8_t thread_number);
+	static THREADPOOLDLL_API bool AllocateThreads(DWORD pId,uint8_t thread_number);
+	static THREADPOOLDLL_API bool DeAllocateThreads(DWORD pId);
 	static THREADPOOLDLL_API bool RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Data_Thread *Data);
 	static THREADPOOLDLL_API bool ReleaseThreadPool(DWORD pId);
 	static THREADPOOLDLL_API bool StartThreads(DWORD pId);
