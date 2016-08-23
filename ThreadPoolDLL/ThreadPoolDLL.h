@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #define MAX_MT_THREADS 128
+#define MAX_THREAD_POOL 4
 
 typedef void (*ThreadPoolFunction)(void *ptr);
 
@@ -27,16 +28,19 @@ class ThreadPoolInterface
 {
 	public:
 
-	static THREADPOOLDLL_API uint8_t GetThreadNumber(uint8_t thread_number);
-	static THREADPOOLDLL_API bool AllocateThreads(DWORD pId,uint8_t thread_number);
-	static THREADPOOLDLL_API bool DeAllocateThreads(DWORD pId);
-	static THREADPOOLDLL_API bool RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Data_Thread *Data);
-	static THREADPOOLDLL_API bool ReleaseThreadPool(DWORD pId);
-	static THREADPOOLDLL_API bool StartThreads(DWORD pId);
-	static THREADPOOLDLL_API bool WaitThreadsEnd(DWORD pId);
-	static THREADPOOLDLL_API bool GetThreadPoolStatus(void);
-	static THREADPOOLDLL_API uint8_t GetCurrentThreadAllocated(void);
-	static THREADPOOLDLL_API uint8_t GetCurrentThreadUsed(void);
+	static THREADPOOLDLL_API uint8_t GetThreadNumber(uint8_t thread_number,bool logical,uint8_t nPool);
+	static THREADPOOLDLL_API bool AllocateThreads(DWORD pId,uint8_t thread_number,uint8_t offset,uint8_t nPool);
+	static THREADPOOLDLL_API bool DeAllocateThreads(DWORD pId,uint8_t nPool);
+	static THREADPOOLDLL_API bool RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Data_Thread *Data,uint8_t nPool);
+	static THREADPOOLDLL_API bool ReleaseThreadPool(DWORD pId,uint8_t nPool);
+	static THREADPOOLDLL_API bool StartThreads(DWORD pId,uint8_t nPool);
+	static THREADPOOLDLL_API bool WaitThreadsEnd(DWORD pId,uint8_t nPool);
+	static THREADPOOLDLL_API bool GetThreadPoolStatus(uint8_t nPool);
+	static THREADPOOLDLL_API uint8_t GetCurrentThreadAllocated(uint8_t nPool);
+	static THREADPOOLDLL_API uint8_t GetCurrentThreadUsed(uint8_t nPool);
+	static THREADPOOLDLL_API uint8_t GetLogicalCPUNumber(uint8_t nPool);
+	static THREADPOOLDLL_API uint8_t GetPhysicalCoreNumber(uint8_t nPool);
+	static THREADPOOLDLL_API void Init(void);
 };
 
 }

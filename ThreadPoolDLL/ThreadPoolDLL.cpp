@@ -4,7 +4,7 @@
 #include "stdafx.h"
 #include "ThreadPoolDLL.h"
 
-#define VERSION "ThreadPool 1.0.0"
+#define VERSION "ThreadPool 1.0.1"
 
 using namespace std;
 
@@ -33,11 +33,16 @@ class ThreadPool
 {
 	public :
 
-	ThreadPool(void);
 	virtual ~ThreadPool(void);
+	static void Init(void);
 
-	uint8_t GetThreadNumber(uint8_t thread_number);
-	bool AllocateThreads(DWORD pId,uint8_t thread_number);
+	protected :
+
+	Arch_CPU CPU;
+
+	public :
+	uint8_t GetThreadNumber(uint8_t thread_number,bool logical);
+	bool AllocateThreads(DWORD pId,uint8_t thread_number,uint8_t offset);
 	bool DeAllocateThreads(DWORD pId);
 	bool RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Data_Thread *Data);
 	bool ReleaseThreadPool(DWORD pId);
@@ -46,15 +51,20 @@ class ThreadPool
 	bool GetThreadPoolStatus(void) {return(Status_Ok);}
 	uint8_t GetCurrentThreadAllocated(void) {return(CurrentThreadsAllocated);}
 	uint8_t GetCurrentThreadUsed(void) {return(CurrentThreadsUsed);}
+	uint8_t GetLogicalCPUNumber(void) {return(CPU.NbLogicCPU);}
+	uint8_t GetPhysicalCoreNumber(void) {return(CPU.NbPhysCore);}
 
-	private :
+	protected :
+
+	ThreadPool(void);
 
 	MT_Data_Thread MT_Thread[MAX_MT_THREADS];
 	HANDLE thds[MAX_MT_THREADS];
 	DWORD tids[MAX_MT_THREADS];
-	Arch_CPU CPU;
 	ULONG_PTR ThreadMask[MAX_MT_THREADS];
-	HANDLE ghMutex,JobsEnded,ThreadPoolFree;
+	CRITICAL_SECTION CriticalSection;
+	BOOL CSectionOk;
+	HANDLE JobsEnded,ThreadPoolFree;
 //	DWORD TabId[MAX_USERS];
 
 	bool Status_Ok,ThreadPoolRequested,JobsRunning;
@@ -62,16 +72,20 @@ class ThreadPool
 	DWORD ThreadPoolRequestProcessId;
 	uint16_t NbreUsers;
 	
-	static DWORD WINAPI StaticThreadpool(LPVOID lpParam);
-
 	void FreeData(void);
 	void FreeThreadPool(void);
-	void CreateThreadPool(void);
+	void CreateThreadPool(uint8_t offset);
 
+	private :
+
+	static DWORD WINAPI StaticThreadpool(LPVOID lpParam);
+
+	ThreadPool (const ThreadPool &other);
+	ThreadPool& operator = (const ThreadPool &other);
+	bool operator == (const ThreadPool &other) const;
+	bool operator != (const ThreadPool &other) const;
 };
 
-
-static ThreadPool Threads;
 
 
 // Helper function to count set bits in the processor mask.
@@ -172,7 +186,7 @@ static ULONG_PTR GetCPUMask(ULONG_PTR bitMask, uint8_t CPU_Nb)
 }
 
 
-static void CreateThreadsMasks(Arch_CPU cpu, ULONG_PTR *TabMask,uint8_t NbThread)
+static void CreateThreadsMasks(Arch_CPU cpu, ULONG_PTR *TabMask,uint8_t NbThread,uint8_t offset)
 {
 	memset(TabMask,0,NbThread*sizeof(ULONG_PTR));
 
@@ -186,8 +200,10 @@ static void CreateThreadsMasks(Arch_CPU cpu, ULONG_PTR *TabMask,uint8_t NbThread
 
 		if (Nb_Core_Th>0)
 		{
+			const uint8_t offs=(cpu.NbHT[i]>offset) ? offset:cpu.NbHT[i]-1;
+
 			for(uint8_t j=0; j<Nb_Core_Th; j++)
-				TabMask[current_thread++]=GetCPUMask(cpu.ProcMask[i],j%cpu.NbHT[i]);
+				TabMask[current_thread++]=GetCPUMask(cpu.ProcMask[i],(j+offs)%cpu.NbHT[i]);
 		}
 	}
 }
@@ -232,7 +248,7 @@ ThreadPool::ThreadPool(void):Status_Ok(true)
 		thds[i]=NULL;
 	}
 //	memset(TabId,0,MAX_USERS*sizeof(DWORD));
-	ghMutex=NULL;
+	CSectionOk=FALSE;
 	JobsEnded=NULL;
 	ThreadPoolFree=NULL;
 	TotalThreadsRequested=0;
@@ -243,14 +259,14 @@ ThreadPool::ThreadPool(void):Status_Ok(true)
 	ThreadPoolRequested=false;
 
 	Get_CPU_Info(CPU);
-/*	if ((CPU.NbLogicCPU==0) || (CPU.NbPhysCore==0))
+	if ((CPU.NbLogicCPU==0) || (CPU.NbPhysCore==0))
 	{
 		Status_Ok=false;
 		return;
-	}*/
+	}
 
-	ghMutex=CreateMutex(NULL,FALSE,NULL);
-	if (ghMutex==NULL)
+	CSectionOk=InitializeCriticalSectionAndSpinCount(&CriticalSection,0x00000040);
+	if (CSectionOk==FALSE)
 	{
 		Status_Ok=false;
 		return;
@@ -275,14 +291,13 @@ ThreadPool::ThreadPool(void):Status_Ok(true)
 
 ThreadPool::~ThreadPool(void)
 {
+	Status_Ok=false;
 	FreeData();
 }
 
 
 void ThreadPool::FreeThreadPool(void) 
 {
-	if (!Status_Ok) return;
-
 	int16_t i;
 
 	for (i=TotalThreadsRequested-1; i>=0; i--)
@@ -312,26 +327,36 @@ void ThreadPool::FreeThreadPool(void)
 
 void ThreadPool::FreeData(void) 
 {
-	if (!Status_Ok) return;
-
 	myCloseHandle(ThreadPoolFree);
 	myCloseHandle(JobsEnded);
-	myCloseHandle(ghMutex);
+	if (CSectionOk==TRUE)
+	{
+		DeleteCriticalSection(&CriticalSection);
+		CSectionOk=FALSE;
+	}
 }
 
 
-uint8_t ThreadPool::GetThreadNumber(uint8_t thread_number)
+uint8_t ThreadPool::GetThreadNumber(uint8_t thread_number,bool logical)
 {
-	if (thread_number==0) return((CPU.NbLogicCPU>MAX_MT_THREADS) ? MAX_MT_THREADS:CPU.NbLogicCPU);
+	const uint8_t nCPU=(logical) ? CPU.NbLogicCPU:CPU.NbPhysCore;
+
+	if (thread_number==0) return((nCPU>MAX_MT_THREADS) ? MAX_MT_THREADS:nCPU);
 	else return(thread_number);
 }
 
 
-bool ThreadPool::AllocateThreads(DWORD pId,uint8_t thread_number)
+bool ThreadPool::AllocateThreads(DWORD pId,uint8_t thread_number,uint8_t offset)
 {
 	if (!Status_Ok) return(false);
 
-	WaitForSingleObject(ghMutex,INFINITE);
+	EnterCriticalSection(&CriticalSection);
+
+	if (thread_number==0)
+	{
+		LeaveCriticalSection(&CriticalSection);
+		return(false);
+	}
 
 /*	if (NbreUsers>=MAX_USERS)
 	{
@@ -353,15 +378,15 @@ bool ThreadPool::AllocateThreads(DWORD pId,uint8_t thread_number)
 		TotalThreadsRequested=thread_number;
 		while (JobsRunning)
 		{
-			ReleaseMutex(ghMutex);
+			LeaveCriticalSection(&CriticalSection);
 			WaitForSingleObject(JobsEnded,INFINITE);
-			WaitForSingleObject(ghMutex,INFINITE);
+			EnterCriticalSection(&CriticalSection);
 		}
-		CreateThreadPool();
+		CreateThreadPool(offset);
 		if (!Status_Ok) return(false);
 	}
 
-	ReleaseMutex(ghMutex);
+	LeaveCriticalSection(&CriticalSection);
 
 	return(true);
 }
@@ -371,11 +396,11 @@ bool ThreadPool::DeAllocateThreads(DWORD pId)
 {
 	if (!Status_Ok) return(false);
 
-	WaitForSingleObject(ghMutex,INFINITE);
+	EnterCriticalSection(&CriticalSection);
 
 	if (NbreUsers==0)
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		return(true);
 	}
 
@@ -398,14 +423,14 @@ bool ThreadPool::DeAllocateThreads(DWORD pId)
 
 	if (NbreUsers==0) FreeThreadPool();
 
-	ReleaseMutex(ghMutex);
+	LeaveCriticalSection(&CriticalSection);
 
 	return(true);
 }
 
 
 
-void ThreadPool::CreateThreadPool(void)
+void ThreadPool::CreateThreadPool(uint8_t offset)
 {
 	int16_t i;
 
@@ -415,7 +440,7 @@ void ThreadPool::CreateThreadPool(void)
 			SuspendThread(thds[i]);
 	}
 
-	CreateThreadsMasks(CPU,ThreadMask,TotalThreadsRequested);
+	CreateThreadsMasks(CPU,ThreadMask,TotalThreadsRequested,offset);
 
 	for(i=0; i<CurrentThreadsAllocated; i++)
 	{
@@ -434,7 +459,7 @@ void ThreadPool::CreateThreadPool(void)
 	if (!Status_Ok)
 	{
 		FreeThreadPool();
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		FreeData();
 		return;
 	}
@@ -454,7 +479,7 @@ void ThreadPool::CreateThreadPool(void)
 	if (!Status_Ok)
 	{
 		FreeThreadPool();
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		FreeData();
 		return;
 	}
@@ -467,19 +492,19 @@ bool ThreadPool::RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Dat
 {
 	if (!Status_Ok) return(false);
 
-	WaitForSingleObject(ghMutex,INFINITE);
+	EnterCriticalSection(&CriticalSection);
 
 	if (thread_number>CurrentThreadsAllocated)
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		return(false);
 	}
 
 	while (ThreadPoolRequested)
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		WaitForSingleObject(ThreadPoolFree,INFINITE);
-		WaitForSingleObject(ghMutex,INFINITE);
+		EnterCriticalSection(&CriticalSection);
 	}
 
 	for(uint8_t i=0; i<thread_number; i++)
@@ -492,7 +517,7 @@ bool ThreadPool::RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Dat
 	ThreadPoolRequested=true;
 	ResetEvent(ThreadPoolFree);
 
-	ReleaseMutex(ghMutex);
+	LeaveCriticalSection(&CriticalSection);
 
 	return(true);	
 }
@@ -502,11 +527,11 @@ bool ThreadPool::ReleaseThreadPool(DWORD pId)
 {
 	if (!Status_Ok) return(false);
 
-	WaitForSingleObject(ghMutex,INFINITE);
+	EnterCriticalSection(&CriticalSection);
 
 	if (ThreadPoolRequestProcessId!=pId)
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		return(false);
 	}
 
@@ -520,7 +545,7 @@ bool ThreadPool::ReleaseThreadPool(DWORD pId)
 		SetEvent(ThreadPoolFree);
 	}
 
-	ReleaseMutex(ghMutex);
+	LeaveCriticalSection(&CriticalSection);
 
 	return(true);
 }
@@ -530,17 +555,17 @@ bool ThreadPool::StartThreads(DWORD pId)
 {
 	if (!Status_Ok) return(false);
 
-	WaitForSingleObject(ghMutex,INFINITE);
+	EnterCriticalSection(&CriticalSection);
 
 	if ((!ThreadPoolRequested) || (CurrentThreadsUsed==0) || (ThreadPoolRequestProcessId!=pId))
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		return(false);
 	}
 
 	if (JobsRunning)
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		return(true);
 	}
 
@@ -554,7 +579,8 @@ bool ThreadPool::StartThreads(DWORD pId)
 		SetEvent(MT_Thread[i].nextJob);
 	}
 
-	ReleaseMutex(ghMutex);
+	LeaveCriticalSection(&CriticalSection);
+
 	return(true);	
 }
 
@@ -563,17 +589,17 @@ bool ThreadPool::WaitThreadsEnd(DWORD pId)
 {
 	if (!Status_Ok) return(false);
 
-	WaitForSingleObject(ghMutex,INFINITE);
+	EnterCriticalSection(&CriticalSection);
 
 	if ((!ThreadPoolRequested) || (CurrentThreadsUsed==0) || (ThreadPoolRequestProcessId!=pId))
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		return(false);
 	}
 
 	if (!JobsRunning)
 	{
-		ReleaseMutex(ghMutex);
+		LeaveCriticalSection(&CriticalSection);
 		return(true);
 	}
 
@@ -586,32 +612,96 @@ bool ThreadPool::WaitThreadsEnd(DWORD pId)
 	JobsRunning=false;
 	SetEvent(JobsEnded);
 
-	ReleaseMutex(ghMutex);
+	LeaveCriticalSection(&CriticalSection);
 
 	return(true);
 }
 
 
+
+static ThreadPool *Threads[MAX_THREAD_POOL]={NULL,NULL,NULL,NULL};
+
+
+void ThreadPool::Init(void)
+{
+	static ThreadPool Pool[MAX_THREAD_POOL];
+
+	for(uint8_t i=0; i<MAX_THREAD_POOL; i++)
+		Threads[i]=&Pool[i];
+}
+
+
 namespace ThreadPoolDLL
 {
-	uint8_t ThreadPoolInterface::GetThreadNumber(uint8_t thread_number)
-		{return(Threads.GetThreadNumber(thread_number));}
-	bool ThreadPoolInterface::AllocateThreads(DWORD pId,uint8_t thread_number)
-		{return(Threads.AllocateThreads(pId,thread_number));}
-	bool ThreadPoolInterface::DeAllocateThreads(DWORD pId)
-		{return(Threads.DeAllocateThreads(pId));}
-	bool ThreadPoolInterface::RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Data_Thread *Data)
-		{return(Threads.RequestThreadPool(pId,thread_number,Data));}
-	bool ThreadPoolInterface::ReleaseThreadPool(DWORD pId)
-		{return(Threads.ReleaseThreadPool(pId));}
-	bool ThreadPoolInterface::StartThreads(DWORD pId)
-		{return(Threads.StartThreads(pId));}
-	bool ThreadPoolInterface::WaitThreadsEnd(DWORD pId)
-		{return(Threads.WaitThreadsEnd(pId));}
-	bool ThreadPoolInterface::GetThreadPoolStatus(void)
-		{return(Threads.GetThreadPoolStatus());}
-	uint8_t ThreadPoolInterface::GetCurrentThreadAllocated(void)
-		{return(Threads.GetCurrentThreadAllocated());}
-	uint8_t ThreadPoolInterface::GetCurrentThreadUsed(void)
-		{return(Threads.GetCurrentThreadUsed());}
+	uint8_t ThreadPoolInterface::GetThreadNumber(uint8_t thread_number,bool logical,uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->GetThreadNumber(thread_number,logical));
+		else return(0);
+	}
+	bool ThreadPoolInterface::AllocateThreads(DWORD pId,uint8_t thread_number,uint8_t offset,uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->AllocateThreads(pId,thread_number,offset));
+		else return(false);
+	}
+	bool ThreadPoolInterface::DeAllocateThreads(DWORD pId,uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->DeAllocateThreads(pId));
+		else return(false);
+	}
+	bool ThreadPoolInterface::RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Data_Thread *Data,uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->RequestThreadPool(pId,thread_number,Data));
+		else return(false);
+	}
+	bool ThreadPoolInterface::ReleaseThreadPool(DWORD pId,uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->ReleaseThreadPool(pId));
+		else return(false);
+	}
+	bool ThreadPoolInterface::StartThreads(DWORD pId,uint8_t nPool)
+	{
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->StartThreads(pId));
+		else return(false);
+	}
+	bool ThreadPoolInterface::WaitThreadsEnd(DWORD pId,uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->WaitThreadsEnd(pId));
+		else return(false);
+	}
+	bool ThreadPoolInterface::GetThreadPoolStatus(uint8_t nPool)
+	{
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->GetThreadPoolStatus());
+		else return(false);
+	}
+	uint8_t ThreadPoolInterface::GetCurrentThreadAllocated(uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->GetCurrentThreadAllocated());
+		else return(0);
+	}
+	uint8_t ThreadPoolInterface::GetCurrentThreadUsed(uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->GetCurrentThreadUsed());
+		else return(0);
+	}
+	uint8_t ThreadPoolInterface::GetLogicalCPUNumber(uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->GetLogicalCPUNumber());
+		else return(0);
+	}
+	uint8_t ThreadPoolInterface::GetPhysicalCoreNumber(uint8_t nPool)
+	{
+		if (nPool>=MAX_THREAD_POOL) nPool=0;
+		if (Threads[nPool]!=NULL) return(Threads[nPool]->GetPhysicalCoreNumber());
+		else return(0);
+	}
+	void ThreadPoolInterface::Init(void) {ThreadPool::Init();}
 }
