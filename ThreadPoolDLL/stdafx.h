@@ -11,5 +11,8 @@
 // Fichiers d'en-tête Windows :
 #include <windows.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include "ThreadPoolDLL.h"
+#include "ThreadPool.h"
 
 // TODO: faites référence ici aux en-têtes supplémentaires nécessaires au programme

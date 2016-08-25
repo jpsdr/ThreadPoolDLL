@@ -1,3 +1,6 @@
+#ifndef __ThreadPoolDLL_H__
+#define __ThreadPoolDLL_H__
+
 #ifdef THREADPOOLDLL_EXPORTS
 #define THREADPOOLDLL_API __declspec(dllexport) 
 #else
@@ -6,41 +9,81 @@
 
 #include <stdint.h>
 
-#define MAX_MT_THREADS 128
-#define MAX_THREAD_POOL 4
+#include "ThreadPoolDef.h"
 
-typedef void (*ThreadPoolFunction)(void *ptr);
-
-
-typedef struct _Public_MT_Data_Thread
+typedef struct _UserData
 {
-	ThreadPoolFunction pFunc;
-	void *pClass;
-	uint8_t f_process,thread_Id;
-} Public_MT_Data_Thread;
+	uint16_t UserId;
+	int8_t nPool;
+} UserData;
 
+
+class ThreadPoolInterface
+{
+	public :
+
+	virtual ~ThreadPoolInterface(void);
+	static ThreadPoolInterface* Init(uint8_t num);
+
+	public :
+
+	uint8_t GetThreadNumber(uint8_t thread_number,bool logical);
+	bool AllocateThreads(uint16_t &UserId,uint8_t thread_number,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,int8_t nPool);
+	bool DeAllocateThreads(uint16_t UserId);
+	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,int8_t nPool,bool Exclusive);
+	bool ReleaseThreadPool(uint16_t UserId);
+	bool StartThreads(uint16_t UserId);
+	bool WaitThreadsEnd(uint16_t UserId);
+	bool GetThreadPoolStatus(uint16_t UserId,int8_t nPool);
+	uint8_t GetCurrentThreadAllocated(uint16_t UserId,int8_t nPool);
+	uint8_t GetCurrentThreadUsed(uint16_t UserId,int8_t nPool);
+	uint8_t GetLogicalCPUNumber(void);
+	uint8_t GetPhysicalCoreNumber(void);
+
+	bool GetThreadPoolInterfaceStatus(void) {return(Status_Ok);}
+	uint16_t GetCurrentPoolCreated(void) {return(NbrePool);}
+
+	protected :
+
+	ThreadPoolInterface(void);
+
+	CRITICAL_SECTION CriticalSection;
+	BOOL CSectionOk;
+	HANDLE JobsEnded[MAX_THREAD_POOL],ThreadPoolFree[MAX_THREAD_POOL];
+	UserData TabId[MAX_USERS];
+	uint16_t NbreUsers;
+	HANDLE EndExclusive;
+
+	bool Status_Ok;
+	bool ThreadPoolRequested[MAX_THREAD_POOL],JobsRunning[MAX_THREAD_POOL];
+	bool ExclusiveMode;
+	uint8_t NbrePool,NbrePoolEvent;
+
+	bool CreatePoolEvent(uint8_t num);
+	void FreeData(void);
+	void FreePool(void);
+	bool EnterCS(void);
+	void LeaveCS(void);
+	
+	private :
+
+	ThreadPoolInterface (const ThreadPoolInterface &other);
+	ThreadPoolInterface& operator = (const ThreadPoolInterface &other);
+	bool operator == (const ThreadPoolInterface &other) const;
+	bool operator != (const ThreadPoolInterface &other) const;
+};
 
 
 namespace ThreadPoolDLL
 {
 
-class ThreadPoolInterface
+class ThreadPoolInterfaceDLL
 {
 	public:
 
-	static THREADPOOLDLL_API uint8_t GetThreadNumber(uint8_t thread_number,bool logical,uint8_t nPool);
-	static THREADPOOLDLL_API bool AllocateThreads(DWORD pId,uint8_t thread_number,uint8_t offset,uint8_t nPool);
-	static THREADPOOLDLL_API bool DeAllocateThreads(DWORD pId,uint8_t nPool);
-	static THREADPOOLDLL_API bool RequestThreadPool(DWORD pId,uint8_t thread_number,Public_MT_Data_Thread *Data,uint8_t nPool);
-	static THREADPOOLDLL_API bool ReleaseThreadPool(DWORD pId,uint8_t nPool);
-	static THREADPOOLDLL_API bool StartThreads(DWORD pId,uint8_t nPool);
-	static THREADPOOLDLL_API bool WaitThreadsEnd(DWORD pId,uint8_t nPool);
-	static THREADPOOLDLL_API bool GetThreadPoolStatus(uint8_t nPool);
-	static THREADPOOLDLL_API uint8_t GetCurrentThreadAllocated(uint8_t nPool);
-	static THREADPOOLDLL_API uint8_t GetCurrentThreadUsed(uint8_t nPool);
-	static THREADPOOLDLL_API uint8_t GetLogicalCPUNumber(uint8_t nPool);
-	static THREADPOOLDLL_API uint8_t GetPhysicalCoreNumber(uint8_t nPool);
-	static THREADPOOLDLL_API void Init(void);
+	static THREADPOOLDLL_API ThreadPoolInterface* Init(uint8_t num);
 };
 
 }
+
+#endif // __ThreadPoolDLL_H__
