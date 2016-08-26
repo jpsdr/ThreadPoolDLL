@@ -3,8 +3,6 @@
 
 #include "stdafx.h"
 
-#define VERSION "ThreadPoolDLL 1.1.0"
-
 using namespace std;
 
 #define myfree(ptr) if (ptr!=NULL) { free(ptr); ptr=NULL;}

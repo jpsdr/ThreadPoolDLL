@@ -11,6 +11,8 @@
 
 #include "ThreadPoolDef.h"
 
+#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.1.1"
+
 typedef struct _UserData
 {
 	uint16_t UserId;
@@ -41,7 +43,7 @@ class ThreadPoolInterface
 	uint8_t GetPhysicalCoreNumber(void);
 
 	bool GetThreadPoolInterfaceStatus(void) {return(Status_Ok);}
-	uint16_t GetCurrentPoolCreated(void) {return(NbrePool);}
+	int8_t GetCurrentPoolCreated(void) {return((Status_Ok) ? NbrePool:-1);}
 
 	protected :
 
