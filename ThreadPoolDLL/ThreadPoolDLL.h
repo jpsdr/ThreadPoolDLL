@@ -11,7 +11,7 @@
 
 #include "ThreadPoolDef.h"
 
-#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.3.0"
+#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.5.0"
 
 typedef struct _UserData
 {
@@ -28,6 +28,9 @@ class ThreadPoolInterface
 	static ThreadPoolInterface* Init(uint8_t num);
 
 	uint8_t GetThreadNumber(uint8_t thread_number,bool logical);
+	int16_t AddPool(uint8_t num);
+	bool DeletePool(uint8_t num);
+	bool RemovePool(uint8_t num);	
 	bool AllocateThreads(uint16_t &UserId,uint8_t thread_number,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,int8_t nPool);
 	bool ChangeThreadsAffinity(uint16_t UserId,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,int8_t nPool);
 	bool DeAllocateThreads(uint16_t UserId);
@@ -55,7 +58,8 @@ class ThreadPoolInterface
 
 	ThreadPoolInterface(void);
 
-	CRITICAL_SECTION CriticalSection,CriticalSectionResources;
+	CRITICAL_SECTION CriticalSection;
+	HANDLE ghMutexResources;
 	BOOL CSectionOk;
 	HANDLE JobsEnded[MAX_THREAD_POOL],ThreadPoolFree[MAX_THREAD_POOL];
 	UserData TabId[MAX_USERS];
@@ -64,7 +68,8 @@ class ThreadPoolInterface
 	bool Error_Occured;
 
 	bool ThreadPoolRequested[MAX_THREAD_POOL],JobsRunning[MAX_THREAD_POOL];
-	bool ThreadPoolReleased[MAX_THREAD_POOL];
+	bool ThreadPoolReleased[MAX_THREAD_POOL],ThreadWaitEnd[MAX_THREAD_POOL];
+	bool ThreadPoolWaitFree[MAX_THREAD_POOL];
 	bool ExclusiveMode;
 	uint8_t NbrePoolEvent;
 
@@ -73,6 +78,8 @@ class ThreadPoolInterface
 	void FreePool(void);
 	bool EnterCS(void);
 	void LeaveCS(void);
+	bool GetMutex(void);
+	void FreeMutex(void);
 	
 	private :
 
