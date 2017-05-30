@@ -11,7 +11,7 @@
 
 #include "ThreadPoolDef.h"
 
-#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.6.1"
+#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.7.0"
 
 typedef struct _UserData
 {
@@ -32,9 +32,14 @@ class ThreadPoolInterface
 	bool CreatePool(uint8_t num);
 	bool DeletePool(uint8_t num);
 	bool RemovePool(uint8_t num);	
+	bool AllocateThreads(uint8_t thread_number,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep,int8_t nPool);
 	bool AllocateThreads(uint16_t &UserId,uint8_t thread_number,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep,int8_t nPool);
-	bool ChangeThreadsAffinity(uint16_t UserId,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep,int8_t nPool);
-	bool DeAllocateThreads(uint16_t UserId);
+	bool GetUserId(uint16_t &UserId);
+	bool RemoveUserId(uint16_t UserId);
+	bool ChangeThreadsAffinity(uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep,int8_t nPool);
+	bool DeAllocateUserThreads(uint16_t UserId,bool check);
+	bool DeAllocatePoolThreads(int8_t nPool,bool check);
+	bool DeAllocateAllThreads(bool check);
 	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,int8_t nPool,bool Exclusive);
 	bool ReleaseThreadPool(uint16_t UserId,bool sleep);
 	bool StartThreads(uint16_t UserId);
@@ -77,10 +82,12 @@ class ThreadPoolInterface
 	bool CreatePoolEvent(uint8_t num);
 	void FreeData(void);
 	void FreePool(void);
+	void FreePool(int8_t nPool);
 	bool EnterCS(void);
 	void LeaveCS(void);
 	bool GetMutex(void);
 	void FreeMutex(void);
+	int16_t GetUserIdIndex(uint16_t UserId);
 	
 	private :
 
