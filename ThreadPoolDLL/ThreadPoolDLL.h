@@ -38,7 +38,7 @@ class ThreadPoolInterface
 	bool RemoveUserId(uint16_t UserId);
 	bool ChangeThreadsAffinity(uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep,int8_t nPool);
 	bool DeAllocateUserThreads(uint16_t UserId,bool check);
-	bool DeAllocatePoolThreads(int8_t nPool,bool check);
+	bool DeAllocatePoolThreads(uint8_t nPool,bool check);
 	bool DeAllocateAllThreads(bool check);
 	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,int8_t nPool,bool Exclusive);
 	bool ReleaseThreadPool(uint16_t UserId,bool sleep);

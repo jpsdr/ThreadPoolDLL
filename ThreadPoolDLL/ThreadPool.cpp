@@ -205,7 +205,6 @@ DWORD WINAPI ThreadPool::StaticThreadpool(LPVOID lpParam )
 
 
 
-
 ThreadPool::ThreadPool(void): Status_Ok(true)
 {
 	int16_t i;
@@ -263,6 +262,12 @@ void ThreadPool::FreeThreadPool(void)
 }
 
 
+ThreadPool::~ThreadPool()
+{
+	FreeThreadPool();
+}
+
+
 uint8_t ThreadPool::GetThreadNumber(uint8_t thread_number,bool logical)
 {
 	const uint8_t nCPU=(logical) ? CPU.NbLogicCPU:CPU.NbPhysCore;
@@ -285,6 +290,7 @@ bool ThreadPool::AllocateThreads(uint8_t thread_number,uint8_t offset_core,uint8
 	return(Status_Ok);
 }
 
+
 bool ThreadPool::ChangeThreadsAffinity(uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep)
 {
 	if ((!Status_Ok) || (CurrentThreadsAllocated==0)) return(false);
@@ -293,6 +299,7 @@ bool ThreadPool::ChangeThreadsAffinity(uint8_t offset_core,uint8_t offset_ht,boo
 
 	return(Status_Ok);
 }
+
 
 bool ThreadPool::DeAllocateThreads(void)
 {
@@ -309,7 +316,7 @@ void ThreadPool::CreateThreadPool(uint8_t offset_core,uint8_t offset_ht,bool Use
 {
 	int16_t i;
 
-	for(i=0; i<CurrentThreadsAllocated; i++)
+	for(i=0; i<(int16_t)CurrentThreadsAllocated; i++)
 	{
 		SuspendThread(thds[i]);
 		ThreadSleep[i]=true;
@@ -317,7 +324,7 @@ void ThreadPool::CreateThreadPool(uint8_t offset_core,uint8_t offset_ht,bool Use
 
 	CreateThreadsMasks(CPU,ThreadMask,TotalThreadsRequested,offset_core,offset_ht,UseMaxPhysCore);
 
-	for(i=0; i<CurrentThreadsAllocated; i++)
+	for(i=0; i<(int16_t)CurrentThreadsAllocated; i++)
 	{
 		if (SetAffinity) SetThreadAffinityMask(thds[i],ThreadMask[i]);
 		else SetThreadAffinityMask(thds[i],CPU.FullMask);
@@ -330,8 +337,8 @@ void ThreadPool::CreateThreadPool(uint8_t offset_core,uint8_t offset_ht,bool Use
 
 	if (CurrentThreadsAllocated==TotalThreadsRequested) return;
 
-	i=CurrentThreadsAllocated;
-	while ((i<TotalThreadsRequested) && Status_Ok)
+	i=(int16_t)CurrentThreadsAllocated;
+	while ((i<(int16_t)TotalThreadsRequested) && Status_Ok)
 	{
 		jobFinished[i]=CreateEvent(NULL,TRUE,TRUE,NULL);
 		nextJob[i]=CreateEvent(NULL,TRUE,FALSE,NULL);
@@ -346,8 +353,8 @@ void ThreadPool::CreateThreadPool(uint8_t offset_core,uint8_t offset_ht,bool Use
 		return;
 	}
 
-	i=CurrentThreadsAllocated;
-	while ((i<TotalThreadsRequested) && Status_Ok)
+	i=(int16_t)CurrentThreadsAllocated;
+	while ((i<(int16_t)TotalThreadsRequested) && Status_Ok)
 	{
 		thds[i]=CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)StaticThreadpool,&MT_Thread[i],CREATE_SUSPENDED,&tids[i]);
 		Status_Ok=Status_Ok && (thds[i]!=NULL);
@@ -363,13 +370,9 @@ void ThreadPool::CreateThreadPool(uint8_t offset_core,uint8_t offset_ht,bool Use
 		}
 		i++;
 	}
-	if (!Status_Ok)
-	{
-		FreeThreadPool();
-		return;
-	}
 
-	CurrentThreadsAllocated=TotalThreadsRequested;
+	if (!Status_Ok) FreeThreadPool();
+	else CurrentThreadsAllocated=TotalThreadsRequested;
 }
 
 
@@ -398,16 +401,19 @@ bool ThreadPool::ReleaseThreadPool(bool sleep)
 {
 	if (!Status_Ok) return(false);
 
-	for(uint8_t i=0; i<CurrentThreadsUsed; i++)
+	if (CurrentThreadsUsed>0)
 	{
-		if (sleep)
+		for(uint8_t i=0; i<CurrentThreadsUsed; i++)
 		{
-			SuspendThread(thds[i]);
-			ThreadSleep[i]=true;
+			if (sleep)
+			{
+				SuspendThread(thds[i]);
+				ThreadSleep[i]=true;
+			}
+			MT_Thread[i].MTData=NULL;
 		}
-		MT_Thread[i].MTData=NULL;
+		CurrentThreadsUsed=0;
 	}
-	CurrentThreadsUsed=0;
 
 	return(true);
 }
