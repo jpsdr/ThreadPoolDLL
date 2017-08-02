@@ -246,6 +246,8 @@ void ThreadPool::FreeThreadPool(void)
 				SetEvent(nextJob[i]);
 				WaitForSingleObject(thds[i],INFINITE);
 				myCloseHandle(thds[i]);
+				MT_Thread[i].f_process=0;
+				ThreadSleep[i]=true;
 			}
 		}
 
