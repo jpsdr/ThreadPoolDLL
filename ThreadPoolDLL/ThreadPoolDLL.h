@@ -11,12 +11,13 @@
 
 #include "ThreadPoolDef.h"
 
-#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.7.4"
+#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.8.0"
 
 typedef struct _UserData
 {
 	volatile uint16_t UserId;
 	volatile int8_t nPool;
+	volatile bool nPollTab[MAX_THREAD_POOL];
 } UserData;
 
 
@@ -40,9 +41,13 @@ class ThreadPoolInterface
 	bool DeAllocatePoolThreads(uint8_t nPool,bool check);
 	bool DeAllocateAllThreads(bool check);
 	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,int8_t nPool,bool Exclusive);
+	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,int8_t &nPool,bool Exclusive,bool AllowSeveral);
 	bool ReleaseThreadPool(uint16_t UserId,bool sleep);
+	bool ReleaseThreadPool(uint16_t UserId,bool sleep,int8_t nPool);
 	bool StartThreads(uint16_t UserId);
+	bool StartThreads(uint16_t UserId,int8_t nPool);
 	bool WaitThreadsEnd(uint16_t UserId);
+	bool WaitThreadsEnd(uint16_t UserId,int8_t nPool);
 	bool GetThreadPoolStatus(uint16_t UserId,int8_t nPool);
 	uint8_t GetCurrentThreadAllocated(uint16_t UserId,int8_t nPool);
 	uint8_t GetCurrentThreadUsed(uint16_t UserId,int8_t nPool);
@@ -75,6 +80,7 @@ class ThreadPoolInterface
 	volatile bool ThreadPoolRequested[MAX_THREAD_POOL],JobsRunning[MAX_THREAD_POOL];
 	volatile bool ThreadPoolReleased[MAX_THREAD_POOL],ThreadWaitEnd[MAX_THREAD_POOL];
 	volatile bool ThreadPoolWaitFree[MAX_THREAD_POOL];
+	volatile uint16_t ThreadPoolUserId[MAX_THREAD_POOL];
 	volatile bool ExclusiveMode;
 	volatile uint8_t NbrePoolEvent;
 
@@ -87,6 +93,9 @@ class ThreadPoolInterface
 	bool GetMutex(void);
 	void FreeMutex(void);
 	int16_t GetUserIdIndex(uint16_t UserId);
+	bool ReleaseThreadPoolCore(uint16_t UserId,int16_t index,bool sleep,int8_t nPool);
+	bool StartThreadsCore(int8_t nPool);
+	bool WaitThreadsEndCore(uint16_t UserId,int8_t nPool);
 	
 	private :
 
