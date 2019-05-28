@@ -1053,7 +1053,6 @@ bool ThreadPoolInterface::RequestThreadPool(uint16_t UserId,uint8_t thread_numbe
 }
 
 
-
 bool ThreadPoolInterface::RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,
 	ThreadLevelName priority,int8_t &nPool,bool Exclusive,bool AllowSeveral)
 {
