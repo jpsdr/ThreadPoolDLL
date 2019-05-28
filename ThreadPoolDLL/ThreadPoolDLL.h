@@ -2,7 +2,7 @@
  *  ThreadPoolDLL
  *
  *  Allow to use the threadpool, kind of API.
- *  Copyright (C) 2017 JPSDR
+ *  Copyright (C) 2016 JPSDR
  *	
  *  ThreadPoolDLL is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@
 
 #include "ThreadPoolDef.h"
 
-#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.8.0"
+#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.9.0"
 
 typedef struct _UserData
 {
@@ -55,15 +55,19 @@ class ThreadPoolInterface
 	bool CreatePool(uint8_t num);
 	bool DeletePool(uint8_t num);
 	bool RemovePool(uint8_t num);	
-	bool AllocateThreads(uint8_t thread_number,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep,int8_t nPool);
+	bool AllocateThreads(uint8_t thread_number,uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,
+		bool SetAffinity,bool sleep,ThreadLevelName priority,int8_t nPool);
 	bool GetUserId(uint16_t &UserId);
 	bool RemoveUserId(uint16_t UserId);
-	bool ChangeThreadsAffinity(uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,bool sleep,int8_t nPool);
+	bool ChangeThreadsAffinity(uint8_t offset_core,uint8_t offset_ht,bool UseMaxPhysCore,bool SetAffinity,int8_t nPool);
+	bool ChangeThreadsLevel(ThreadLevelName priority,int8_t nPool);
 	bool DeAllocateUserThreads(uint16_t UserId,bool check);
 	bool DeAllocatePoolThreads(uint8_t nPool,bool check);
 	bool DeAllocateAllThreads(bool check);
-	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,int8_t nPool,bool Exclusive);
-	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,int8_t &nPool,bool Exclusive,bool AllowSeveral);
+	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,
+		ThreadLevelName priority,int8_t nPool,bool Exclusive);
+	bool RequestThreadPool(uint16_t UserId,uint8_t thread_number,Public_MT_Data_Thread *Data,
+		ThreadLevelName priority,int8_t &nPool,bool Exclusive,bool AllowSeveral);
 	bool ReleaseThreadPool(uint16_t UserId,bool sleep);
 	bool ReleaseThreadPool(uint16_t UserId,bool sleep,int8_t nPool);
 	bool StartThreads(uint16_t UserId);
