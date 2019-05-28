@@ -82,7 +82,7 @@ class ThreadPool
 	DWORD tids[MAX_MT_THREADS];
 	ULONG_PTR ThreadMask[MAX_MT_THREADS];
 	volatile bool ThreadSleep[MAX_MT_THREADS];
-	volatile ThreadLevelName nPriority[MAX_MT_THREADS];
+	volatile ThreadLevelName nPriority;
 
 	volatile bool Status_Ok;
 	volatile uint8_t TotalThreadsRequested,CurrentThreadsAllocated,CurrentThreadsUsed;

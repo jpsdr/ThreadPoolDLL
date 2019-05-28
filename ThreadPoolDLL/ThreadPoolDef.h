@@ -31,8 +31,8 @@
 
 typedef void (*ThreadPoolFunction)(void *ptr);
 
-enum ThreadLevelName {NoneLevel,IdleLevel,LowestLevel,BelowLevel,NormalLevel,AboveLevel,
-	HighestLevel,CriticalLevel};
+enum ThreadLevelName {NoneThreadLevel,IdleThreadLevel,LowestThreadLevel,BelowThreadLevel,
+	NormalThreadLevel,AboveThreadLevel,HighestThreadLevel,CriticalThreadLevel};
 
 typedef struct _Public_MT_Data_Thread
 {
