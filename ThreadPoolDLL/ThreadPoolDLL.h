@@ -31,7 +31,7 @@
 
 #include <stdint.h>
 
-#include "ThreadPoolDef.h"
+#include "./ThreadPoolDef.h"
 
 #define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.9.2"
 
