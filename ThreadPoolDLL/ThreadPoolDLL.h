@@ -33,7 +33,7 @@
 
 #include "./ThreadPoolDef.h"
 
-#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.9.4"
+#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.9.5"
 
 typedef struct _UserData
 {
