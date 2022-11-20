@@ -34,7 +34,7 @@
 
 #include "./ThreadPoolDef.h"
 
-#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.2.0"
+#define THREADPOOL_DDL_VERSION "ThreadPoolDLL 1.12.0"
 
 class ThreadPoolInterface;
  
